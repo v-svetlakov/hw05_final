@@ -15,7 +15,7 @@ def index(request):
             Post.objects.select_related('author')
             .select_related('group')
             .order_by('-pub_date')
-            .annotate(comment_count=Count('post_comment'))
+            .annotate(comment_count=Count('post_comments'))
         )
         paginator = Paginator(post_list, 2)
         page_number = request.GET.get('page')
@@ -29,8 +29,7 @@ def group_posts(request, slug):
         Post.objects.select_related('author')
             .select_related('group')
             .order_by('-pub_date')
-            .annotate(comment_count=Count('post_comment'))
-            #.annotate(fovorite_count=Count("post_favorite"))
+            .annotate(comment_count=Count('post_comments'))
     )
     paginator = Paginator(post_list, 10) # показывать по 10 записей на странице.
     page_number = request.GET.get('page') # переменная в URL с номером запрошенной страницы
@@ -46,7 +45,6 @@ def new_post(request):
             post = form.save(commit=False)
             post.author = request.user
             post.save()
-
             return redirect('index')
         return render(request, 'new_post.html', {'form': form})
     form = PostForm()
@@ -60,12 +58,17 @@ def profile(request, username):
         Post.objects.select_related('author')
             .filter(author=user)
             .order_by('-pub_date')
-            .annotate(comment_count=Count('post_comment'))
+            .annotate(comment_count=Count('post_comments'))
     )
     # является ли текущий юзер фоловером этого профайла
-    following = Follow.objects.filter(user=request.user, author=user).first()
+    following = False
+    if request.user.is_authenticated:
+        favorites = Follow.objects.filter(user=request.user).count()
+        if favorites > 0:
+            following = True
     user_followers = Follow.objects.filter(author=user).count()
-    user_follow = Follow.objects.filter(user=user).count
+    user_follow = Follow.objects.filter(user=user).count()
+
     my_post = Post.objects.filter(author=user).count()
     paginator = Paginator(post_list, 3)
     page_number = request.GET.get('page')
@@ -75,9 +78,8 @@ def profile(request, username):
         "profile.html",
         {
             'profile': user,
-            'page': page,
             'paginator': paginator,
-            'post_list': post_list,
+            'page': page,
             'following': following,
             'user_followers': user_followers,
             'user_follow': user_follow,
@@ -112,19 +114,17 @@ def post_view(request, username, post_id):
 
 @login_required()
 def add_comment(request, username, post_id):
-    #username = get_object_or_404(User, username=username)
     post = get_object_or_404(Post, id=post_id)
     form = CommentForm(request.POST)
     if request.method != 'POST' or not form.is_valid():
-        return redirect("post", username=post.user.username, post_id=post_id) #post.author.username
+        return redirect("post", username=post.author.username, post_id=post_id) #post.author.username
 
-    comment = Comment(user=request.user, post=post, text=form.cleaned_data["text"])
+    comment = Comment(author=request.user, post=post, text=form.cleaned_data["text"])
     comment.save()
     return redirect("post", username=request.user.username, post_id=post_id)
 
 @login_required()
 def follow_index(request):
-    follow = Follow.objects.get(user=request.user)
     favorite_list = Follow.objects.select_related('author', 'user').filter(user=request.user)
     author_list = [favorite.author for favorite in favorite_list]
     post_list = Post.objects.filter(author__in=author_list).order_by("-pub_date")
@@ -135,8 +135,6 @@ def follow_index(request):
         request,
         "follow.html",
         {
-            'profile': follow,
-            #'follow': follow,
             'page': page,
             'paginator': paginator,
         }

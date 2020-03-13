@@ -141,10 +141,29 @@ class New_user_post_view_test(TestCase):
                                             password='ya3')
         self.post = Post.objects.create(
             text="Test text",
+            author=self.user3,
+        )
+        Follow.objects.create(user=self.user2, author=self.user3)
+        self.client.login(**self.user1)
+        follower_prob = self.client.get(f"/follow/")
+        self.assertContains(follower_prob, self.post.text, count=1, status_code=200)
+
+class comment_test(TestCase):
+    def setUp(self):
+        self.client = Client()
+        self.user1 = User.objects.create(username='test',
+                                            email='ya@ya.com',
+                                            password='test')
+        self.user2 = User.objects.create(username='test2',
+                                            email='ya2j@ya.com',
+                                            password='test2')
+        self.post = Post.objects.create(
+            text="Test comment",
             author=self.user1,
         )
-        Follow.objects.create(user=self.user1, author=self.followee)
-        self.client.login(**self.user_data)
-        follower_feed = self.client.get(f"/follow/")
-        self.assertContains(follower_feed, self.post.text, count=1, status_code=200)
-
+        self.client.force_login(self.user2)
+        comment_prob = self.client.get(f"self.user1/self.post/comment/")
+        text = 'one comment'
+        self.assertContains(comment_prob, text, count=1, status_code=200)
+        self.client.logout(self.user2)
+        self.assertNotContains(comment_prob, text)
